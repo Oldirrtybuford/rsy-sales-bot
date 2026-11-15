@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v7
+        with:
+          ref: main   # always start from the newest state, not the commit the run was queued on
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -51,12 +53,20 @@ jobs:
             echo "state.json unchanged; nothing to commit"
             exit 0
           fi
+          cp state.json /tmp/my_state.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state.json
-          git commit -m "Update sales state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase --autostash && git push && exit 0
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            python merge_state.py /tmp/my_state.json state.json
+            if git diff --quiet -- state.json; then
+              echo "repo already up to date"
+              exit 0
+            fi
+            git add state.json
+            git commit -m "Update sales state [skip ci]"
+            git push origin HEAD:main && exit 0
             sleep 5
           done
           echo "Could not push state.json" && exit 1
